@@ -29,13 +29,8 @@ namespace api::modules {
             int screen = 0;
             std::atomic<int> divide{1};
             std::atomic<int> fps{60};
-            std::atomic<int> keyframe_count{10};
             std::atomic<bool> running{false};
-            int frame_counter = 0;
             std::thread worker;
-            std::vector<uint8_t> prev_frame;
-            int prev_width = 0;
-            int prev_height = 0;
         };
 
         std::mutex ctx_m;

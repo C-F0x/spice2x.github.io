@@ -12,7 +12,6 @@
 
 #include "api/controller.h"
 #include "hooks/graphics/graphics.h"
-#include "util/lz77.h"
 #include "util/logging.h"
 
 using namespace std::placeholders;
@@ -49,7 +48,7 @@ namespace api::modules {
     }
 
     /**
-     * subscribe([screen=0, divide=1, fps=60, keyframe_count=10])
+     * subscribe([screen=0, divide=1, fps=60])
      */
     void Capture2x::handle_subscribe(Request &req, Response &res) {
 
@@ -102,11 +101,6 @@ namespace api::modules {
                 ctx->fps = val;
             }
         }
-        if (req.params.Size() > 3 && req.params[3].IsInt()) {
-            int val = req.params[3].GetInt();
-            if (val >= 1 && val <= 240) {
-                ctx->keyframe_count = val;
-            }
         }
 
         // apply server-side overrides
@@ -140,7 +134,7 @@ namespace api::modules {
     }
 
     /**
-     * set_params([divide=-1, fps=-1, keyframe_count=-1])
+     * set_params([divide=-1, fps=-1])
      * Passing -1 for any parameter leaves it unchanged.
      */
     void Capture2x::handle_set_params(Request &req, Response &res) {
@@ -182,19 +176,11 @@ namespace api::modules {
             ctx->fps = (int)CAPTURE2X_FPS_OVERRIDE.value();
         }
 
-        // keyframe_count
-        if (req.params.Size() > 2 && req.params[2].IsInt()) {
-            int val = req.params[2].GetInt();
-            if (val >= 1 && val <= 240) {
-                ctx->keyframe_count = val;
-            }
         }
 
-        // reset frame counter on param change → next frame will be keyframe
-        ctx->frame_counter = 0;
 
-        log_info("api::capture2x", "params updated (divide={}, fps={}, kf={})",
-                ctx->divide.load(), ctx->fps.load(), ctx->keyframe_count.load());
+        log_info("api::capture2x", "params updated (divide={}, fps={})",
+                ctx->divide.load(), ctx->fps.load());
 
         auto ok = true;
         res.add_data(ok);
@@ -228,7 +214,6 @@ namespace api::modules {
         if (ctx_ptr->worker.joinable()) {
             ctx_ptr->worker.join();
         }
-        ctx_ptr->prev_frame.clear();
 
         log_info("api::capture2x", "client unsubscribed");
         auto ok = true;
@@ -258,15 +243,14 @@ namespace api::modules {
         ClientState *client = ctx->state;
         const int screen = ctx->screen;
 
-        log_info("api::capture2x", "worker started (screen={}, divide={}, fps={}, kf={})",
-                screen, ctx->divide.load(), ctx->fps.load(), ctx->keyframe_count.load());
+        log_info("api::capture2x", "worker started (screen={}, divide={}, fps={})",
+                screen, ctx->divide.load(), ctx->fps.load());
 
         while (ctx->running) {
 
             auto frame_start = std::chrono::steady_clock::now();
             int divide = ctx->divide.load();
             int fps = ctx->fps.load();
-            int keyframe_count = ctx->keyframe_count.load();
 
             // trigger capture and wait for raw data
             graphics_capture_trigger(screen);
@@ -299,69 +283,24 @@ namespace api::modules {
                 scaled_data = std::move(raw_data);
             }
 
-            // --- encode decision: periodic keyframe + resolution pulse ---
-            int kf_interval = (keyframe_count > 0 && fps > 0) ? std::max(1, fps / keyframe_count) : 1;
-            bool res_changed = (ctx->prev_width != scaled_width || ctx->prev_height != scaled_height);
-            bool do_keyframe = res_changed || (ctx->frame_counter >= kf_interval);
+            // --- encode: QOI every frame ---
+            qoi_desc desc = {};
+            desc.width = (unsigned int)scaled_width;
+            desc.height = (unsigned int)scaled_height;
+            desc.channels = 3;
+            desc.colorspace = QOI_SRGB;
 
-            ctx->frame_counter++;
+            int qoi_len = 0;
+            void *qoi_data = qoi_encode(scaled_data.data(), &desc, &qoi_len);
+
+            if (!qoi_data || qoi_len <= 0) {
+                // encoding failed, retry with next capture
+                continue;
+            }
 
             std::vector<uint8_t> encoded;
-            uint8_t frame_type;
-
-            if (do_keyframe) {
-
-                // --- keyframe: QOI encode ---
-                qoi_desc desc = {};
-                desc.width = (unsigned int)scaled_width;
-                desc.height = (unsigned int)scaled_height;
-                desc.channels = 3;
-                desc.colorspace = QOI_SRGB;
-
-                int qoi_len = 0;
-                void *qoi_data = qoi_encode(scaled_data.data(), &desc, &qoi_len);
-
-                if (!qoi_data || qoi_len <= 0) {
-                    // encoding failed, retry with next capture
-                    continue;
-                }
-
-                encoded.assign((uint8_t *)qoi_data, (uint8_t *)qoi_data + qoi_len);
-                QOI_FREE(qoi_data);
-
-                frame_type = CAPTURE2X_FRAME_TYPE_KEYFRAME;
-                ctx->frame_counter = 0;
-
-                // store as previous frame for diff
-                ctx->prev_frame = scaled_data;
-                ctx->prev_width = scaled_width;
-                ctx->prev_height = scaled_height;
-
-            } else {
-
-                // --- diff frame: XOR + LZ77 ---
-                size_t pixel_count = (size_t)scaled_width * scaled_height * 3;
-
-                if (ctx->prev_frame.size() != pixel_count) {
-                    // mismatch — force keyframe next iteration
-                    ctx->frame_counter = 0;
-                    continue;
-                }
-
-                // XOR current with previous
-                std::vector<uint8_t> xored(pixel_count);
-                for (size_t i = 0; i < pixel_count; i++) {
-                    xored[i] = scaled_data[i] ^ ctx->prev_frame[i];
-                }
-
-                // LZ77 compress
-                encoded = util::lz77::compress(xored.data(), xored.size());
-
-                frame_type = CAPTURE2X_FRAME_TYPE_DIFF;
-
-                // store as previous frame
-                ctx->prev_frame = scaled_data;
-            }
+            encoded.assign((uint8_t *)qoi_data, (uint8_t *)qoi_data + qoi_len);
+            QOI_FREE(qoi_data);
 
             // check callback still valid
             if (!client->capture2x_send) {
@@ -372,7 +311,7 @@ namespace api::modules {
             size_t total_size = CAPTURE2X_HEADER_SIZE + encoded.size();
             std::vector<uint8_t> frame(total_size);
             build_frame_header(
-                    frame_type, divide, fps, 0,
+                    CAPTURE2X_FRAME_TYPE_KEYFRAME, divide, fps, 0,
                     timestamp,
                     (uint16_t)scaled_width, (uint16_t)scaled_height,
                     (uint32_t)encoded.size(),
