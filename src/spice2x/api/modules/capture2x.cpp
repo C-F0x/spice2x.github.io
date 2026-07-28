@@ -101,7 +101,6 @@ namespace api::modules {
                 ctx->fps = val;
             }
         }
-        }
 
         // apply server-side overrides
         if (CAPTURE2X_DIVIDE_OVERRIDE.has_value()) {
@@ -176,7 +175,6 @@ namespace api::modules {
             ctx->fps = (int)CAPTURE2X_FPS_OVERRIDE.value();
         }
 
-        }
 
 
         log_info("api::capture2x", "params updated (divide={}, fps={})",
