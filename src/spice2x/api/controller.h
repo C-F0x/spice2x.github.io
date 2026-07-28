@@ -1,5 +1,6 @@
 #pragma once
 
+#include <functional>
 #include <mutex>
 #include <string>
 #include <thread>
@@ -23,6 +24,10 @@ namespace api {
         std::string password;
         bool password_change = false;
         util::RC4 *cipher = nullptr;
+
+        // capture2x: callback for sending binary frame data via WebSocket.
+        // Set by WebSocketClient::on_accept, cleared on disconnect.
+        std::function<void(const uint8_t*, size_t)> capture2x_send;
     };
 
     class Controller {

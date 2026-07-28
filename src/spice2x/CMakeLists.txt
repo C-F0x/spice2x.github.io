@@ -323,6 +323,7 @@ set(SOURCE_FILES ${SOURCE_FILES}
         api/modules/card.cpp
         api/modules/buttons.cpp
         api/modules/capture.cpp
+        api/modules/capture2x.cpp
         api/modules/analogs.cpp
         api/modules/lights.cpp
         api/modules/memory.cpp

@@ -18,6 +18,7 @@
 #include "modules/buttons.h"
 #include "modules/card.h"
 #include "modules/capture.h"
+#include "modules/capture2x.h"
 #include "modules/coin.h"
 #include "modules/control.h"
 #include "modules/ddr.h"
@@ -319,6 +320,7 @@ bool Controller::process_request(ClientState *state, const char *in, size_t in_s
     Request request(document);
     Response response(request.id);
     bool success = true;
+    request.client_state = state;
 
     // check if request has parse error
     if (request.parse_error) {
@@ -401,6 +403,7 @@ void Controller::init_state(api::ClientState *state) {
     state->modules.push_back(new modules::Buttons());
     state->modules.push_back(new modules::Card());
     state->modules.push_back(new modules::Capture());
+    state->modules.push_back(new modules::Capture2x());
     state->modules.push_back(new modules::Coin());
     state->modules.push_back(new modules::Control());
     state->modules.push_back(new modules::DDR());

@@ -11,6 +11,7 @@
 #include <cfg/configurator.h>
 
 #include "api/modules/capture.h"
+#include "api/modules/capture2x.h"
 #include "acio/acio.h"
 #include "acio/icca/icca.h"
 #include "acio/mdxf/mdxf.h"
@@ -1026,6 +1027,15 @@ int main_implementation(int argc, char *argv[]) {
     }
     if (options[launcher::Options::APIScreenMirrorDivide].is_active()) {
         api::modules::CAPTURE_DIVIDE = options[launcher::Options::APIScreenMirrorDivide].value_uint32();
+    }
+    if (options[launcher::Options::ScreenMirror2x].value_bool()) {
+        api::modules::CAPTURE2X_ENABLED = true;
+    }
+    if (options[launcher::Options::API2xDivide].is_active()) {
+        api::modules::CAPTURE2X_DIVIDE_OVERRIDE = options[launcher::Options::API2xDivide].value_uint32();
+    }
+    if (options[launcher::Options::API2xFPS].is_active()) {
+        api::modules::CAPTURE2X_FPS_OVERRIDE = options[launcher::Options::API2xFPS].value_uint32();
     }
 
     if (options[launcher::Options::DisableDebugHooks].value_bool()) {

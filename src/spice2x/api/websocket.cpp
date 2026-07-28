@@ -90,6 +90,11 @@ namespace api {
         state = new ClientState();
         srv->websocket->controller->init_state(state);
 
+        // set capture2x binary frame send callback
+        state->capture2x_send = [this](const uint8_t *data, size_t len) {
+            this->push(data, len, opcode::binary);
+        };
+
         // log connection
         log_info("api::websocket", "client connected");
         overlay::notifications::add(
@@ -113,6 +118,7 @@ namespace api {
 
         // clean up state
         srv->websocket->controller->free_state(state);
+        state->capture2x_send = nullptr;
         delete state;
         state = nullptr;
 

@@ -117,11 +117,11 @@ namespace util::lz77 {
         output.reserve(input_length);
 
         // window buffer
-        uint8_t *window = new uint8_t[LZ_WINDOW_SIZE];
+        static thread_local uint8_t window[LZ_WINDOW_SIZE] = {};
         size_t window_pos = 0;
 
         // working buffer
-        uint8_t *buffer = new uint8_t[LZ_MAX_BUFFER];
+        static thread_local uint8_t buffer[LZ_MAX_BUFFER];
         size_t buffer_pos = 0;
 
         // state
@@ -189,8 +189,6 @@ namespace util::lz77 {
         }
 
         // clean up and return result
-        delete[] window;
-        delete[] buffer;
         return output;
     }
 
@@ -201,7 +199,7 @@ namespace util::lz77 {
         output.reserve(input_length);
 
         // create window
-        uint8_t *window = new uint8_t[LZ_WINDOW_SIZE];
+        static thread_local uint8_t window[LZ_WINDOW_SIZE] = {};
         size_t window_pos = 0;
 
         // iterate input data
@@ -229,7 +227,6 @@ namespace util::lz77 {
                     if (word == 0) {
 
                         // detected end
-                        delete[] window;
                         return output;
 
                     } else {
@@ -254,7 +251,6 @@ namespace util::lz77 {
         }
 
         // clean up and return result
-        delete[] window;
         return output;
     }
 }

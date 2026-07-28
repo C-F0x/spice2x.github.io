@@ -1389,6 +1389,64 @@ bool graphics_capture_receive_jpeg(int screen, TooJpeg::WRITE_ONE_BYTE receiver,
     return success;
 }
 
+bool graphics_capture_receive_raw(int screen, std::vector<uint8_t> &out_data,
+        uint64_t *timestamp, int *width, int *height) {
+
+    if (screen < 0 || screen >= static_cast<int>(GRAPHICS_CAPTURE_SCREEN_NO)) {
+        return false;
+    }
+
+    // wait for capture event (with timeout)
+    std::unique_lock<std::mutex> lock(GRAPHICS_CAPTURE_BUFFER_M[screen]);
+    const bool ready = GRAPHICS_CAPTURE_CV[screen].wait_for(
+            lock,
+            GRAPHICS_CAPTURE_RECEIVE_TIMEOUT,
+            [screen] {
+                return GRAPHICS_CAPTURE_BUFFER[screen].data != nullptr
+                    || GRAPHICS_CAPTURE_SKIP_SIGNAL[screen];
+            });
+
+    if (!ready) {
+        lock.unlock();
+        graphics_capture_cancel_pending(screen);
+        return false;
+    }
+
+    if (GRAPHICS_CAPTURE_SKIP_SIGNAL[screen]) {
+        GRAPHICS_CAPTURE_SKIP_SIGNAL[screen] = false;
+        lock.unlock();
+        return false;
+    }
+
+    auto &capture = GRAPHICS_CAPTURE_BUFFER[screen];
+    auto capture_data = capture.data;
+    auto capture_width = capture.width;
+    auto capture_height = capture.height;
+    auto capture_timestamp = capture.timestamp;
+    capture.data = nullptr;
+    lock.unlock();
+
+    if (!capture_data || !capture_width || !capture_height) {
+        return false;
+    }
+
+    // copy raw RGB data (capture_width * capture_height * 3 bytes)
+    size_t data_size = capture_width * capture_height * 3;
+    out_data.assign(capture_data.get(), capture_data.get() + data_size);
+
+    if (timestamp) {
+        *timestamp = capture_timestamp;
+    }
+    if (width) {
+        *width = (int)capture_width;
+    }
+    if (height) {
+        *height = (int)capture_height;
+    }
+
+    return true;
+}
+
 std::string graphics_screenshot_genpath() {
 
     // verify dir path

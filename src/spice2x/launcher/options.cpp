@@ -1726,6 +1726,39 @@ static const std::vector<OptionDefinition> OPTION_DEFINITIONS = {
         .category = "Companion & API",
     },
     {
+        // ScreenMirror2x
+        .title = "API Screen Mirror 2x (BETA)",
+        .name = "screenmirror2x",
+        .desc = "Enable 2x screen mirroring via WebSocket binary streaming. "
+            "Provides low-latency screen capture with client-side quality control. "
+            "Requires a WebSocket connection (API port + 1).",
+        .type = OptionType::Bool,
+        .category = "Companion & API",
+    },
+    {
+        // API2xDivide
+        .title = "API Screen2x Divide Override",
+        .name = "apiscreen2xdiv",
+        .desc = "Divide (downscale) value for 2x screen mirroring, "
+            "overriding any client request. "
+            "Divide of 1 means full resolution, 2 means half, etc. "
+            "Value must be between 1 and 8. Default: 1.",
+        .type = OptionType::Integer,
+        .setting_name = "1",
+        .category = "Companion & API",
+    },
+    {
+        // API2xFPS
+        .title = "API Screen2x FPS Override",
+        .name = "apiscreen2xfps",
+        .desc = "FPS limit for 2x screen mirroring, "
+            "overriding any client request. "
+            "Value must be between 1 and 60. Default: 60.",
+        .type = OptionType::Integer,
+        .setting_name = "60",
+        .category = "Companion & API",
+    },
+    {
         .title = "Enable All IO Modules",
         .name = "io",
         .desc = "Manually enable ALL IO emulation.",
